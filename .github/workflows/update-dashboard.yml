@@ -1,0 +1,60 @@
+name: Update BTC Dashboard
+
+on:
+  schedule:
+    # Run at 00:30 UTC on the 1st of every month
+    - cron: '30 0 1 * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install matplotlib numpy yfinance pandas
+      
+      - name: Generate dashboard
+        id: generate
+        run: |
+          python src/build_price_dashboard/main.py
+          echo "success=true" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      
+      - name: Get current month-year
+        if: steps.generate.outputs.success == 'true'
+        id: date
+        run: |
+          echo "month_year=$(date +'%B-%Y' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+      
+      - name: Update README with new image path
+        if: steps.generate.outputs.success == 'true'
+        run: |
+          MONTH_YEAR="${{ steps.date.outputs.month_year }}"
+          sed -i "s|outputs/[a-z]*-[0-9]*/btc_monthly_returns.png|outputs/${MONTH_YEAR}/btc_monthly_returns.png|g" README.md
+      
+      - name: Commit and push changes
+        if: steps.generate.outputs.success == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add outputs/ README.md
+          git diff --staged --quiet || git commit -m "Update dashboard: ${{ steps.date.outputs.month_year }}"
+          git push
+      
+      - name: Report failure
+        if: steps.generate.outputs.success != 'true'
+        run: |
+          echo "Dashboard generation failed. No changes committed."
+          exit 1
