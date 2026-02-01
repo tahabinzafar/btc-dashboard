@@ -23,7 +23,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install matplotlib numpy yfinance pandas
+          pip install matplotlib numpy yfinance pandas scikit-learn
       
       - name: Generate dashboard
         id: generate
