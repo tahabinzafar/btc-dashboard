@@ -1,3 +1,4 @@
+[![Update BTC Dashboard](https://github.com/tahabinzafar/btc-dashboard/actions/workflows/update-dashboard.yml/badge.svg)](https://github.com/tahabinzafar/btc-dashboard/actions/workflows/update-dashboard.yml)
 # BTC Monthly Returns Dashboard
 
 A simple visualization of Bitcoin's monthly percentage gains and losses since 2014.
