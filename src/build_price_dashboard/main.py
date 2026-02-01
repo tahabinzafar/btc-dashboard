@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python3
 """
 BTC Monthly Returns Dashboard Generator
 
@@ -211,35 +211,28 @@ def create_heatmap(returns_data: dict, output_path: Path, prediction: dict = Non
     ax.tick_params(length=0, pad=8)
     ax.set_xticks([])
     
-    # Title at top
-    current_date = datetime.now().strftime('%b %Y')
-    
-    ax.text(6, n_years + 1.6, 'BTC Monthly Returns',
+    # Title at top (more spacing)
+    ax.text(6, n_years + 2.0, 'BTC Monthly Returns',
             ha='center', va='bottom',
-            fontsize=20, fontweight='700', color='#f0f6fc',
+            fontsize=22, fontweight='700', color='#f0f6fc',
             fontfamily='sans-serif')
     
-    ax.text(6, n_years + 1.25, f'Updated {current_date}',
-            ha='center', va='bottom',
-            fontsize=11, color='#8b949e',
-            fontfamily='sans-serif')
-    
-    # Month labels below title
+    # Month labels below title (with proper gap)
     for j, label in enumerate(month_labels):
-        ax.text(j + 0.5, n_years + 0.85, label,
+        ax.text(j + 0.5, n_years + 1.35, label,
                ha='center', va='bottom',
                fontsize=10, fontweight='600', color='#8b949e',
                fontfamily='sans-serif')
     
-    # Prediction legend at bottom
+    # Prediction footer
     if prediction:
-        ax.text(6, -0.6, '* Predicted (Ridge Regression)',
+        ax.text(6, -0.7, '* Current month prediction based on lagged returns, momentum & seasonality signals',
                ha='center', va='top',
-               fontsize=9, color='#8b949e', style='italic',
+               fontsize=9, color='#6e7681', style='italic',
                fontfamily='sans-serif')
     
     # Adjust limits
-    ax.set_ylim(-0.9, n_years + 2.1)
+    ax.set_ylim(-1.1, n_years + 2.6)
     
     # Save
     plt.savefig(output_path, dpi=150, bbox_inches='tight',
