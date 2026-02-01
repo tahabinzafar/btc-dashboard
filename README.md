@@ -6,49 +6,44 @@ A simple visualization of Bitcoin's monthly percentage gains and losses since 20
 
 ![BTC Monthly Returns](outputs/february-2026/btc_monthly_returns.png)
 
+## Features
+
+- **Historical data** from Yahoo Finance (2014-present)
+- **Monthly averages** row showing typical performance per month
+- **ML prediction** for current month using Ridge Regression (marked with `*` and dashed border)
+- **Auto-updates** on the 1st of each month via GitHub Actions
+
 ## Structure
 
 ```
-btc-monthly-returns/
-├── src/
-│   └── build_price_dashboard/
-│       └── main.py          # Main script
-├── outputs/
-│   └── {month}-{year}/      # Monthly snapshots
-│       └── btc_monthly_returns.png
-├── .github/
-│   └── workflows/
-│       └── update-dashboard.yml
+btc-dashboard/
+├── src/build_price_dashboard/
+│   ├── main.py       # Fetches data, generates heatmap
+│   └── predict.py    # Ridge regression prediction
+├── outputs/{month}-{year}/
+│   └── btc_monthly_returns.png
+├── .github/workflows/
+│   └── update-dashboard.yml
 └── README.md
 ```
-
-## How It Works
-
-The script generates a heatmap showing:
-- **Rows**: Years (newest at top)
-- **Columns**: Months (Jan-Dec)
-- **Colors**: Green = gains, Red = losses
-- **Values**: Monthly percentage change
-
-Data source: Yahoo Finance API (via yfinance) with embedded historical fallback.
 
 ## Run Locally
 
 ```bash
-pip install matplotlib numpy yfinance pandas
+pip install -r requirements.txt
 python src/build_price_dashboard/main.py
 ```
 
-## Automation
+## Prediction Model
 
-The dashboard updates automatically on the 1st of each month via GitHub Actions.
-Updates only commit if the script runs successfully.
+Features used:
+- Lagged returns (1, 2, 3 months)
+- Moving averages (3, 6 months)
+- Rolling volatility
+- Momentum, streak, YTD return
+- Seasonality (month encoding)
 
-## Data Coverage
-
-- **Start**: 2011 (first reliable exchange data)
-- **End**: Current month
-- **Source**: BTC-USD from Yahoo Finance
+Not financial advice. Crypto is unpredictable.
 
 ---
 
