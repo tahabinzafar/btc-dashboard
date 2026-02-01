@@ -1,6 +1,6 @@
 # BTC Monthly Returns Dashboard
 
-A simple visualization of Bitcoin's monthly percentage gains and losses since 2011.
+A simple visualization of Bitcoin's monthly percentage gains and losses since 2014.
 
 ## Latest Dashboard
 
