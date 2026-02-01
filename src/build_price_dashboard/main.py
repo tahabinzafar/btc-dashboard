@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 BTC Monthly Returns Dashboard Generator
 
@@ -13,6 +13,8 @@ import matplotlib.patches as mpatches
 from datetime import datetime
 from pathlib import Path
 import sys
+
+from predict import predict_current_month
 
 
 def fetch_btc_data():
@@ -33,12 +35,20 @@ def fetch_btc_data():
     # Calculate percentage change month-over-month
     returns = monthly.pct_change() * 100
     
+    # Get current year/month to exclude incomplete data
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+    
     # Convert to {year: {month: return}} format
     data = {}
     for date, ret in returns.items():
         if pd.notna(ret):
             year = date.year
             month = date.month
+            # Skip current incomplete month
+            if year == current_year and month == current_month:
+                continue
             if year not in data:
                 data[year] = {}
             data[year][month] = round(ret, 2)
@@ -47,64 +57,99 @@ def fetch_btc_data():
     return data
 
 
-def create_heatmap(returns_data: dict, output_path: Path) -> None:
+def create_heatmap(returns_data: dict, output_path: Path, prediction: dict = None) -> None:
     """Create the monthly returns heatmap visualization."""
     
     # Get sorted years (ascending - oldest at top, newest at bottom)
     years = sorted(returns_data.keys())
+    
+    # If prediction exists, ensure that year is included
+    if prediction:
+        pred_year = prediction['year']
+        if pred_year not in years:
+            years.append(pred_year)
+            returns_data[pred_year] = {}
+        years = sorted(years)
+    
     n_years = len(years)
     
     # Month labels
     month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     
-    # Figure setup
-    fig_height = max(6, n_years * 0.45 + 1.5)
+    # Calculate monthly averages (excluding prediction)
+    monthly_avgs = {}
+    for month in range(1, 13):
+        values = [returns_data[y].get(month) for y in years if returns_data[y].get(month) is not None]
+        if values:
+            monthly_avgs[month] = sum(values) / len(values)
+    
+    # Figure setup (extra row for averages)
+    fig_height = max(6, (n_years + 1) * 0.45 + 1.5)
     fig, ax = plt.subplots(figsize=(14, fig_height), facecolor='#0d1117')
     ax.set_facecolor('#0d1117')
     
     # Simple green/red colors with intensity based on magnitude
     def get_color(value):
         if value is None:
-            return '#21262d'  # dark gray for no data
+            return '#21262d'
         
-        intensity = min(abs(value) / 40, 1.0)  # cap intensity at 40%
+        intensity = min(abs(value) / 40, 1.0)
         
         if value > 0:
-            # Green: from muted to bright
             r = int(22 + (0 - 22) * intensity)
             g = int(27 + (200 - 27) * intensity)
             b = int(34 + (80 - 34) * intensity)
             return f'#{r:02x}{g:02x}{b:02x}'
         else:
-            # Red: from muted to bright
             r = int(27 + (200 - 27) * intensity)
             g = int(22 + (40 - 22) * intensity)
             b = int(27 + (40 - 27) * intensity)
             return f'#{r:02x}{g:02x}{b:02x}'
     
-    # Draw cells
     cell_gap = 0.08
+    
+    # Draw year rows
     for i, year in enumerate(years):
         year_data = returns_data.get(year, {})
+        row_y = i + 1  # offset by 1 for averages row at bottom
         
         for j in range(12):
             month = j + 1
             value = year_data.get(month)
+            
+            # Check if this is the prediction cell
+            is_prediction = (prediction and 
+                           year == prediction['year'] and 
+                           month == prediction['month'])
+            
+            if is_prediction:
+                value = prediction['predicted_return']
+            
             color = get_color(value)
             
-            # Draw rectangle
-            rect = mpatches.FancyBboxPatch(
-                (j + cell_gap/2, i + cell_gap/2), 
-                1 - cell_gap, 1 - cell_gap,
-                boxstyle="round,pad=0.01,rounding_size=0.08",
-                facecolor=color,
-                edgecolor='#0d1117',
-                linewidth=1
-            )
+            # Different style for prediction cell
+            if is_prediction:
+                rect = mpatches.FancyBboxPatch(
+                    (j + cell_gap/2, row_y + cell_gap/2), 
+                    1 - cell_gap, 1 - cell_gap,
+                    boxstyle="round,pad=0.01,rounding_size=0.08",
+                    facecolor=color,
+                    edgecolor='#f0f6fc',
+                    linewidth=2,
+                    linestyle='--'
+                )
+            else:
+                rect = mpatches.FancyBboxPatch(
+                    (j + cell_gap/2, row_y + cell_gap/2), 
+                    1 - cell_gap, 1 - cell_gap,
+                    boxstyle="round,pad=0.01,rounding_size=0.08",
+                    facecolor=color,
+                    edgecolor='#0d1117',
+                    linewidth=1
+                )
             ax.add_patch(rect)
             
-            # Add text
             if value is not None:
                 sign = '+' if value > 0 else ''
                 text_color = '#ffffff' if abs(value) > 10 else '#8b949e'
@@ -114,54 +159,87 @@ def create_heatmap(returns_data: dict, output_path: Path) -> None:
                 else:
                     display_val = f'{sign}{value:.1f}%'
                 
-                ax.text(j + 0.5, i + 0.5, display_val,
+                # Add asterisk for prediction
+                if is_prediction:
+                    display_val += '*'
+                
+                ax.text(j + 0.5, row_y + 0.5, display_val,
                        ha='center', va='center',
                        fontsize=9, fontweight='500',
                        color=text_color,
                        fontfamily='sans-serif')
     
+    # Draw averages row at bottom (row 0)
+    for j in range(12):
+        month = j + 1
+        value = monthly_avgs.get(month)
+        color = get_color(value)
+        
+        rect = mpatches.FancyBboxPatch(
+            (j + cell_gap/2, cell_gap/2), 
+            1 - cell_gap, 1 - cell_gap,
+            boxstyle="round,pad=0.01,rounding_size=0.08",
+            facecolor=color,
+            edgecolor='#0d1117',
+            linewidth=1
+        )
+        ax.add_patch(rect)
+        
+        if value is not None:
+            sign = '+' if value > 0 else ''
+            text_color = '#ffffff' if abs(value) > 10 else '#8b949e'
+            display_val = f'{sign}{value:.1f}%'
+            
+            ax.text(j + 0.5, 0.5, display_val,
+                   ha='center', va='center',
+                   fontsize=9, fontweight='500',
+                   color=text_color,
+                   fontfamily='sans-serif')
+    
     # Axis setup
     ax.set_xlim(0, 12)
-    ax.set_ylim(0, n_years)
+    ax.set_ylim(0, n_years + 1)
     
-    # Month labels on top
-    ax.set_xticks([i + 0.5 for i in range(12)])
-    ax.set_xticklabels(month_labels, fontsize=10, fontweight='600', color='#8b949e')
-    ax.xaxis.set_ticks_position('top')
-    ax.xaxis.set_label_position('top')
-    
-    # Year labels on left
-    ax.set_yticks([i + 0.5 for i in range(n_years)])
-    ax.set_yticklabels(years, fontsize=10, fontweight='600', color='#8b949e')
+    # Year labels on left (with Avg at bottom)
+    ax.set_yticks([i + 0.5 for i in range(n_years + 1)])
+    ax.set_yticklabels(['Avg'] + years, fontsize=10, fontweight='600', color='#8b949e')
     
     # Remove spines
     for spine in ax.spines.values():
         spine.set_visible(False)
     
     ax.tick_params(length=0, pad=8)
+    ax.set_xticks([])
     
-    # Title
+    # Title at top
     current_date = datetime.now().strftime('%b %Y')
     
-    ax.text(6, n_years + 0.8, 'BTC Monthly Returns',
+    ax.text(6, n_years + 1.6, 'BTC Monthly Returns',
             ha='center', va='bottom',
             fontsize=20, fontweight='700', color='#f0f6fc',
             fontfamily='sans-serif')
     
-    ax.text(6, n_years + 0.35, f'Updated {current_date}',
+    ax.text(6, n_years + 1.25, f'Updated {current_date}',
             ha='center', va='bottom',
             fontsize=11, color='#8b949e',
             fontfamily='sans-serif')
     
-    # Simple legend
-    legend_y = -0.8
-    ax.text(4.5, legend_y, '◼ Loss', ha='right', va='center', 
-            fontsize=10, color='#c85050', fontweight='500')
-    ax.text(7.5, legend_y, '◼ Gain', ha='left', va='center',
-            fontsize=10, color='#3fb950', fontweight='500')
+    # Month labels below title
+    for j, label in enumerate(month_labels):
+        ax.text(j + 0.5, n_years + 0.85, label,
+               ha='center', va='bottom',
+               fontsize=10, fontweight='600', color='#8b949e',
+               fontfamily='sans-serif')
     
-    # Adjust limits for title and legend
-    ax.set_ylim(-1.2, n_years + 1.3)
+    # Prediction legend at bottom
+    if prediction:
+        ax.text(6, -0.6, '* Predicted (Ridge Regression)',
+               ha='center', va='top',
+               fontsize=9, color='#8b949e', style='italic',
+               fontfamily='sans-serif')
+    
+    # Adjust limits
+    ax.set_ylim(-0.9, n_years + 2.1)
     
     # Save
     plt.savefig(output_path, dpi=150, bbox_inches='tight',
@@ -193,8 +271,15 @@ def main():
         years = sorted(returns_data.keys())
         print(f"Total years: {len(years)}")
         
+        # Generate prediction for current month
+        prediction = None
+        try:
+            prediction = predict_current_month(returns_data)
+        except Exception as e:
+            print(f"Warning: Could not generate prediction: {e}")
+        
         # Create visualization
-        create_heatmap(returns_data, output_path)
+        create_heatmap(returns_data, output_path, prediction)
         
         print(f"\n✓ Dashboard generated successfully")
         print(f"  Output: {output_path}")
