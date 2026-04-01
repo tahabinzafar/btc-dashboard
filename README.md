@@ -5,7 +5,7 @@ A simple visualization of Bitcoin's monthly percentage gains and losses since 20
 
 ## Latest Dashboard
 
-![BTC Monthly Returns](outputs/march-2026/btc_monthly_returns.png)
+![BTC Monthly Returns](outputs/april-2026/btc_monthly_returns.png)
 
 ## Features
 
